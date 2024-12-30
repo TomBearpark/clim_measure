@@ -17,15 +17,14 @@ stations <- read_csv(paste0(dir, "GHCNh_stationlist_daymean_2011-2020_180plus.cs
   # Number of stations within 500, 
   # Minimum distance to another station, 
   # Average distance to other stations that are within 500km
-
 dist.vals <- tibble(
   dist[,1], 
   dist_to_closest_stn = apply(dist[, -1], 1, function(x) min(x[x>0])), 
   num_within_500 = apply(dist[, -1], 1, function(x) sum(x < 500)), 
   dist_within_500 = apply(dist[, -1], 1, function(x) sum(x*(x < 500) / num_within_500))
 )
-stations <- stations %>% 
-  left_join(dist.vals)
+
+stations <- stations %>% left_join(dist.vals)
 
 # load data ---------------------------------------------------------------
 years <- 2011:2020
@@ -65,7 +64,7 @@ collapse <- function(df, group_vars, stations){
     left_join(stations)  
 }
 
-
+# Prediction variables
 covs <- c('Elevation', 'Latitude', 'Longitude', 'n', 
           'dist_to_closest_stn', 'num_within_500', 'dist_within_500')
 covs.trans <- c("log(Elevation)", "log(abs(Latitude))", "log(abs(Longitude))", "log(n)", 
@@ -75,8 +74,6 @@ gen.ff <- function(covs){
   paste0("log(mabs_err) ~ ", paste0(covs, collapse = " + ")) %>% 
     as.formula()
 }
-
-
 # describe interpolation error by cross sectional covariates -------------------
 
 df.mod <-collapse(df, "Station_ID", stations)
@@ -104,11 +101,14 @@ feols(gen.ff(c(covs.trans, "i(year)")), df.mod.y, vcov = 'hetero') %>%
 
 # by month of year --------------------------------------------------------
 
-df.mod.m <- collapse(df %>% 
-                       mutate(month = month(date)), c("Station_ID", "month"), stations)
+df.mod.m <- collapse(df %>% mutate(month = month(date)), 
+                     c("Station_ID", "month"), stations)
 
 feols(gen.ff(covs.trans), df.mod.m, vcov = 'hetero', split= ~month) %>% 
   coefplot()
 
 feols(gen.ff(c(covs.trans, "i(month)")), df.mod.m, vcov = 'hetero') %>% 
   etable()
+
+# panel stuff -------------------------------------------------------------
+feols(err ~ 1 | date + Station_ID, df, vcov="hetero")
