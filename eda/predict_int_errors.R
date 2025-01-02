@@ -111,4 +111,12 @@ feols(gen.ff(c(covs.trans, "i(month)")), df.mod.m, vcov = 'hetero') %>%
   etable()
 
 # panel stuff -------------------------------------------------------------
-feols(err ~ 1 | date + Station_ID, df, vcov="hetero")
+df <- df %>% filter(!is.na(err))
+gc()
+m.err <- feols(err ~ 1 | date + Station_ID, df, vcov="hetero")
+m.t   <- feols(t2m ~ 1 | date + Station_ID, df, vcov="hetero")
+
+df$res.err <- resid(m.err)  
+df$res.t   <- resid(m.t)
+
+feols(res.err ~ res.t, df)
