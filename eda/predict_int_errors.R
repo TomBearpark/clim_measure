@@ -1,10 +1,11 @@
-pacman::p_load(tidyverse, fixest, sf)
+pacman::p_load(tidyverse, fixest, sf, rnaturalearth)
 
 if(Sys.info()['user'] == 'tombearpark'){
   dir <- '/Users/tombearpark/Library/CloudStorage/Dropbox/clim_measure/data/'
 } else {
   dir <- "EDIT THIS PATH TO YOUR DATA FOLDER"
 }
+theme_set(theme_classic())
 
 # load files --------------------------------------------------------------
 # Check file names
@@ -26,6 +27,17 @@ dist.vals <- tibble(
 
 stations <- stations %>% left_join(dist.vals)
 
+# Convert stations into a sf object for plotting
+
+world <- rnaturalearth::ne_countries(scale = "large", returnclass = "sf")
+
+stations.sf <- stations %>% 
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) 
+stations.sf %>% 
+  ggplot() + 
+  geom_sf(data =world, fill=NA)+
+  geom_sf(color = 'red')
+
 # load data ---------------------------------------------------------------
 years <- 2011:2020
 
@@ -42,7 +54,17 @@ df <- left_join(df.vals, df.int, by = join_by(date, Station_ID, year)) %>%
   mutate(err = t2m - t2m_interpolated)
 gc()
 
+df %>% arrange(-err)
+df %>% filter(t2m==-999)
+df %>% filter(t2m > -999, !is.na(t2m_interpolated)) %>% arrange(t2m)
+
 ggplot(df) + geom_histogram(aes(x=err))
+ggplot(df %>% filter(abs(err)<20)) + geom_histogram(aes(x=err))
+
+df <- df %>% 
+  mutate(err = if_else(
+    t2m_interpolated < -50 | t2m == -999 | Elevation < 0, NA, err
+  ))
 
 # funcs -------------------------------------------------------------------
 
@@ -70,13 +92,17 @@ covs <- c('Elevation', 'Latitude', 'Longitude', 'n',
 covs.trans <- c("log(Elevation)", "log(abs(Latitude))", "log(abs(Longitude))", "log(n)", 
                 "log(dist_to_closest_stn)", "log(num_within_500)", "log(dist_within_500)")
 
-gen.ff <- function(covs){
-  paste0("log(mabs_err) ~ ", paste0(covs, collapse = " + ")) %>% 
+gen.ff <- function(covs, yvar="log_mabs_err"){
+  paste0(yvar, " ~ ", paste0(covs, collapse = " + ")) %>% 
     as.formula()
 }
+
 # describe interpolation error by cross sectional covariates -------------------
 
-df.mod <-collapse(df, "Station_ID", stations)
+df.mod <-collapse(df, "Station_ID", stations) %>% 
+  filter(Elevation >0) 
+
+ggplot(df.mod) + geom_histogram(aes(x = mabs_err))
 
 plt(df.mod, "Elevation")
 plt(df.mod, "Latitude")
@@ -86,15 +112,69 @@ plt(df.mod, "dist_to_closest_stn")
 plt(df.mod, "num_within_500")
 plt(df.mod, "dist_within_500")
 
-feols(gen.ff(covs.trans), df.mod, vcov = 'hetero') %>% 
-  etable(fitstat = 'r2')
+m.reg <- feols(gen.ff(covs.trans, "mabs_err"), df.mod, vcov = 'hetero')
+
+m.reg %>% etable(fitstat = 'r2')
+
+left_join(stations.sf, df.mod) %>% 
+  ggplot() + 
+  geom_sf(data =world, fill=NA, alpha=.5)+
+  geom_sf(aes(color = mabs_err)) +
+  scale_color_viridis_c()
+
+# try ML model ------------------------------------------------------------
+
+# ML model
+pacman::p_load(tidymodels, vip)
+
+pred.data <- df.mod %>% select(-Station_ID, -Station_name, -mean_sqrd_err) %>% 
+  mutate(abs_long = abs(Longitude), abs_lat = abs(Latitude))
+
+data_split <- initial_split(pred.data, prop = 0.8)
+train_data <- training(data_split)
+test_data  <- testing(data_split)
+
+rec <- recipe(mabs_err ~ ., data = train_data) %>%
+  step_normalize(all_predictors()) %>%
+  step_impute_median(all_predictors())
+
+model_spec <- rand_forest() %>%
+  set_engine("ranger", importance="impurity") %>%
+  set_mode("regression")
+
+workflow <- workflow() %>%
+  add_model(model_spec) %>%
+  add_recipe(rec)
+
+model_fit <-  fit(workflow, data = train_data)
+final_fit <-  fit(model_fit, data = pred.data)
+
+df.mod$ml <- predict(final_fit, new_data = pred.data)$.pred
+df.mod$lm <- predict(m.reg, newdata = pred.data)
+
+final_fit %>% extract_fit_parsnip() %>% vip(num_features = 20)
+
+df.mod %>% 
+  summarize(MLrmse = sqrt(mean((mabs_err - ml)^2)), 
+            LMrmse = sqrt(mean((mabs_err - lm)^2)))
+
+# Looks like we can already get a 90% R2 with this simple(ish) model
+etable(feols(mabs_err ~ lm, df.mod, vcov = 'hetero'), 
+       feols(mabs_err ~ ml, df.mod, vcov = 'hetero')
+       )
+
+df.mod %>% 
+  pivot_longer(cols = c("lm", "ml")) %>%
+  ggplot() + geom_point(aes(x = mabs_err, y = value)) + geom_abline() + 
+  facet_wrap(~name) + 
+  xlab("Error") + ylab("Predicted error")
 
 # include year ------------------------------------------------------------
 
 df.mod.y <- collapse(df, c("Station_ID", "year"), stations)
 
 feols(gen.ff(covs.trans), df.mod.y, vcov = 'hetero', split= ~year) %>% 
-  coefplot()
+  coefplot(drop='Const')
 
 feols(gen.ff(c(covs.trans, "i(year)")), df.mod.y, vcov = 'hetero') %>% 
   coefplot()
@@ -105,7 +185,7 @@ df.mod.m <- collapse(df %>% mutate(month = month(date)),
                      c("Station_ID", "month"), stations)
 
 feols(gen.ff(covs.trans), df.mod.m, vcov = 'hetero', split= ~month) %>% 
-  coefplot()
+  coefplot(drop="Const")
 
 feols(gen.ff(c(covs.trans, "i(month)")), df.mod.m, vcov = 'hetero') %>% 
   etable()
