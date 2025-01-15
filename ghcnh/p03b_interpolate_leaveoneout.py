@@ -42,7 +42,7 @@ for stationlist in stationlists:
 
 	## =============================== ##
 
-	df_stations = pd.read_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, stationlist))
+	df_stations = pd.read_csv(os.path.join(DATAPATH_STATIONLISTS, stationlist))
 	stations = df_stations['Station_ID'].unique()
 
 	## =============================== ##

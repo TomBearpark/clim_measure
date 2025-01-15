@@ -19,7 +19,7 @@ NDAYS_MIN = 30
 
 # Load the data
 ifile = 'GHCNh_{0:d}-{1:d}_stationlist_utc00.csv'.format(YEARS[0], YEARS[-1])
-df = pd.read_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, ifile))
+df = pd.read_csv(os.path.join(DATAPATH_STATIONLISTS, ifile))
 df = df.loc[df['year'].between(YEARS[0], YEARS[-1]), :]
 df = df.loc[df['nobs_temperature'] >= NDAYS_MIN, :]
 stations = df.groupby('Station_ID')['year'].count()
@@ -31,7 +31,7 @@ df.to_csv(os.path.join(DATAPATH_STATIONLISTS, ofile), index=False)
 
 # Load the data
 ifile = 'GHCNh_{0:d}-{1:d}_stationlist_utc12.csv'.format(YEARS[0], YEARS[-1])
-df = pd.read_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, ifile))
+df = pd.read_csv(os.path.join(DATAPATH_STATIONLISTS, ifile))
 df = df.loc[df['year'].between(YEARS[0], YEARS[-1]), :]
 df = df.loc[df['nobs_temperature'] >= NDAYS_MIN, :]
 stations = df.groupby('Station_ID')['year'].count()
@@ -43,7 +43,7 @@ df.to_csv(os.path.join(DATAPATH_STATIONLISTS, ofile), index=False)
 
 # Load the data
 ifile = 'GHCNh_{0:d}-{1:d}_stationlist_daily.csv'.format(YEARS[0], YEARS[-1])
-df = pd.read_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, ifile))
+df = pd.read_csv(os.path.join(DATAPATH_STATIONLISTS, ifile))
 df = df.loc[df['year'].between(YEARS[0], YEARS[-1]), :]
 df = df.loc[df['nobs_temperature'] >= NDAYS_MIN, :]
 stations = df.groupby('Station_ID')['year'].count()

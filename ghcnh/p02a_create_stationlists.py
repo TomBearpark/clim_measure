@@ -51,10 +51,10 @@ for year in YEARS:
 	list_daily.append(df)
 
 df_all = pd.concat(list_utc00, axis=0, ignore_index=True)
-df_all.to_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, 'GHCNh_{0:d}-{1:d}_stationlist_utc00.csv'.format(YEARS[0], YEARS[-1])), index=False)
+df_all.to_csv(os.path.join(DATAPATH_STATIONLISTS, 'GHCNh_{0:d}-{1:d}_stationlist_utc00.csv'.format(YEARS[0], YEARS[-1])), index=False)
 
 df_all = pd.concat(list_utc12, axis=0, ignore_index=True)
-df_all.to_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, 'GHCNh_{0:d}-{1:d}_stationlist_utc12.csv'.format(YEARS[0], YEARS[-1])), index=False)
+df_all.to_csv(os.path.join(DATAPATH_STATIONLISTS, 'GHCNh_{0:d}-{1:d}_stationlist_utc12.csv'.format(YEARS[0], YEARS[-1])), index=False)
 
 df_all = pd.concat(list_daily, axis=0, ignore_index=True)
-df_all.to_csv(os.path.join(DATAPATH_GHCNH_PROCESSED, 'GHCNh_{0:d}-{1:d}_stationlist_daily.csv'.format(YEARS[0], YEARS[-1])), index=False)
+df_all.to_csv(os.path.join(DATAPATH_STATIONLISTS, 'GHCNh_{0:d}-{1:d}_stationlist_daily.csv'.format(YEARS[0], YEARS[-1])), index=False)
